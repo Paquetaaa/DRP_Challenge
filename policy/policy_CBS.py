@@ -354,6 +354,7 @@ def a_star_constrained(env, agent, start, goal, constraints):
     # print(f"[A* NONE] agent={agent} start={start} goal={goal} "
     #   f"neg={sum(1 for c in constraints if c[3]=='-')} "
     #   f"pos={sum(1 for c in constraints if c[3]=='+')}")
+    PROFILE["astar_time"] += time.perf_counter() - _t0
     return None
 
 
@@ -596,7 +597,7 @@ def cbs(env):
         return None
     open_list = []
     counter = 0
-    max_iter = 500000
+    max_iter = 50000000
     iter_count = 0
     bypass_count = 0
 
@@ -609,14 +610,14 @@ def cbs(env):
 
     # Push the root node in the queue
     heapq.heappush(open_list, (root.cost, counter, root))
-    while open_list: # and iter_count < max_iter: # We loop until we find a solution or we exhaust the search space
+    while open_list and iter_count < max_iter: 
 
         # if time.time() - start_time > TIME_OUT:
         #     print(f"[CBS] timeout après {iter_count} itérations")
         #     return None
 
-        now= time.time()
         now = time.time()
+
         if iter_count % 1000 == 0 or now - last_log > 30:
             elapsed = now - loop_start
             its_per_sec = iter_count / max(elapsed, 0.001)
