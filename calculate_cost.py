@@ -115,6 +115,22 @@ def calculate_cost(instances, policy):
         score["subtotal_cost"] = mean_goal_step
         cost.append(score)
         print("End of problem number " + str(instance["id"]))
+
+        # --- Sauvegarde incrémentale ---
+        partial_score_dict = {
+            "Author": submitted.TEAM_NAME,
+            "Scored time": str(datetime.now().strftime("%Y-%m-%H-%M-%S")),
+            "Score": cost,
+            "final cost": sum(s["subtotal_cost"] for s in cost),
+            "completed": len(cost),
+            "total": len(instances),
+        }
+        json_filename = submitted.TEAM_NAME + ".json"
+        with open(json_filename, "w") as f:
+            json.dump(partial_score_dict, f, indent=4)
+        print(f"  → JSON updated ({len(cost)}/{len(instances)} instances done)", flush=True)
+        # --- Fin sauvegarde ---
+        
         # delete env
         del env
     subtotal_costs = [score["subtotal_cost"] for score in cost]

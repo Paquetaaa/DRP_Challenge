@@ -26,7 +26,7 @@ PROFILE = {
 }
 
 USE_BYPASS = False
-CARDINAL_SEARCH_TRESHOLD = 20
+CARDINAL_SEARCH_TRESHOLD = 200
 
 WAIT_COST = 1  # Cost of waiting one step
 
@@ -111,7 +111,6 @@ def reshape_graph_from_G(env, G, pos):
 
             #alpha = i / k
             alpha = (i * speed) / w  # au lieu de i / k
-
             pos_new[new_node] = interpolate(pos_new[u],pos_new[v], alpha)
             #print(f"Creating intermediate node {new_node} between {u} and {v} at position {pos_new[new_node]}")
 
@@ -123,9 +122,7 @@ def reshape_graph_from_G(env, G, pos):
         prev = v
         for i in range(1, k): # Create intermediate nodes, if k = 3 we will create 2 intermediate nodes at 1/3 and 2/3 of the way
             new_node = f"{v}_{u}_{i}"
-
             G_new.add_node(new_node, type="intermediate")
-
             #alpha = i / k
             alpha = (i * speed) / w  # au lieu de i / k
 
@@ -239,7 +236,7 @@ def priority_based_planning(env, max_horizon=500, max_attempts=5):
                                    env.goal_array[agent],
                                    constraints)
             if p is None:
-                print(f"[fallback] attempt {attempt} agent {agent} infeasible, staying at start")
+                print(f"[fallback] attempt {attempt} agent {agent} infeasible, staying at start", flush=True)
                 paths_pp[agent] = [env.current_start[agent]]
                 continue
             success_count += 1
@@ -381,7 +378,7 @@ def pick_best_conflict(env,ct_node):
             best_non = (conflict,result)
         if i+1 > CARDINAL_SEARCH_TRESHOLD and best_semi is not None:
             ### this avoid to scan all the conflict in case no cardinal is found
-            print("Threshold atteint")
+            print("Threshold atteint", flush=True)
             return best_semi
     return best_semi if best_semi else best_non
 
@@ -586,11 +583,16 @@ def build_constraints(conflict):
 def cbs(env):
     ## Creation of the root node
     start_time = time.time()
-    TIME_OUT = 60.0
+    #TIME_OUT = 60.0
+
+    print(f"[CBS START] {time.strftime('%H:%M:%S')} agents={env.agent_num} nodes={len(env.G.nodes)}", flush=True)
+    loop_start = time.time()
+    last_log = loop_start
+
 
     root = make_root_node(env)
     if root is None:
-        print("Racine impossible")
+        print("Racine impossible", flush=True)
         return None
     open_list = []
     counter = 0
@@ -607,15 +609,23 @@ def cbs(env):
 
     # Push the root node in the queue
     heapq.heappush(open_list, (root.cost, counter, root))
-    while open_list and iter_count < max_iter:
+    while open_list: # and iter_count < max_iter: # We loop until we find a solution or we exhaust the search space
 
-        if time.time() - start_time > TIME_OUT:
-            print(f"[CBS] timeout après {iter_count} itérations")
-            return None
+        # if time.time() - start_time > TIME_OUT:
+        #     print(f"[CBS] timeout après {iter_count} itérations")
+        #     return None
 
-        
-        if iter_count % 500 == 0:
-            print(f"Iteration {iter_count}, open list size: {len(open_list)}")
+        now= time.time()
+        now = time.time()
+        if iter_count % 1000 == 0 or now - last_log > 30:
+            elapsed = now - loop_start
+            its_per_sec = iter_count / max(elapsed, 0.001)
+            min_cost = open_list[0][0] if open_list else 0
+            print(f"[{time.strftime('%H:%M:%S')}] iter={iter_count} elapsed={elapsed:.0f}s "
+                f"open={len(open_list)} min_cost={min_cost:.0f} its/s={its_per_sec:.1f} "
+                f"card={cnt_card} semi={cnt_semi} astar={PROFILE['astar_calls']}", flush=True)
+            last_log = now
+
 
         iter_count += 1
         #print(f"Iteration {iter_count}")
@@ -631,19 +641,19 @@ def cbs(env):
         
         if picked_conflict is None:
             print(f"[CBS] {iter_count} iterations, {bypass_count} bypasses "
-                f"({100*bypass_count/max(iter_count,1):.1f}%)")
-            print(f"Total iteration : {iter_count}")
-            print(f"[CBS] {cnt_card} cardinal conflicts, {cnt_semi} semi-cardinal conflicts, {cnt_non} non-cardinal conflicts)")
+                f"({100*bypass_count/max(iter_count,1):.1f}%)", flush=True)
+            print(f"Total iteration : {iter_count}", flush=True)
+            print(f"[CBS] {cnt_card} cardinal conflicts, {cnt_semi} semi-cardinal conflicts, {cnt_non} non-cardinal conflicts)", flush=True)
 
             total_classify_a_star = PROFILE["classify_calls"] * 2  # 2 A* par classify
-            print(f"[PROFILE]")
+            print(f"[PROFILE]", flush=True)
             print(f"  A* calls: {PROFILE['astar_calls']} ({PROFILE['astar_time']:.2f}s, "
-                f"{1000*PROFILE['astar_time']/max(PROFILE['astar_calls'],1):.2f}ms/call)")
+                f"{1000*PROFILE['astar_time']/max(PROFILE['astar_calls'],1):.2f}ms/call)", flush=True)
             print(f"  detect_all_conflicts calls: {PROFILE['detect_calls']} "
-                f"({PROFILE['detect_time']:.2f}s)")
+                f"({PROFILE['detect_time']:.2f}s)", flush=True)
             print(f"  classify_conflict calls: {PROFILE['classify_calls']} "
-                f"({PROFILE['classify_time']:.2f}s)")
-            print(f"  iterations: {iter_count}")
+                f"({PROFILE['classify_time']:.2f}s)", flush=True)
+            print(f"  iterations: {iter_count}", flush=True)
 
             return ct_node.solution
 
@@ -708,6 +718,10 @@ def init(env):
     path_idx.clear()
     last_node.clear()
 
+    print(f"\n[{time.strftime('%H:%M:%S')}] [INSTANCE] episode={env.episode_account} "
+      f"agents={env.agent_num}", flush=True)
+    init_start = time.time()
+
     # Saving the original graph and positions.
     if not hasattr(env, "G_original"):
         env.G_original = env.G.copy()
@@ -719,22 +733,26 @@ def init(env):
     ## CBS
     result = cbs(env)
     if result is not None:
-        print("resultat de CBS : ")
-        print(result)
+        print("resultat de CBS : ", flush=True)
+        print(result, flush=True)
         paths = path_translation(env,result)
-        print("resultat du path_translation")
+        print("resultat du path_translation", flush=True)
         print(paths)
    
         cbs_success = True
-        print("CBS found a solution.")
+        print("CBS found a solution.", flush=True)
 
     else:
         # Fallback: Standard Priority-based A* (more robust than simple A*)
         cbs_success = False
-        print("CBS failed to find a solution, falling back to priority-based A*.")
+        print("CBS failed to find a solution, falling back to priority-based A*.", flush=True)
 
         result = priority_based_planning(env)
         paths = path_translation(env, result)
+    
+    print(f"[{time.strftime('%H:%M:%S')}] [INSTANCE END] cbs_success={cbs_success} "
+      f"total_time={time.time()-init_start:.1f}s", flush=True)
+
         
     for agent in range(env.agent_num):
         path_idx[agent] = 0
