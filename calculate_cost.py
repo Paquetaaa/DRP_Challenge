@@ -3,11 +3,13 @@ import time
 import json
 from datetime import datetime
 
-import policy.policy as submitted
+#import policy.policy_CBS_10_04 as submitted
+#import policy.policy_astar as submitted
+import policy.policy_CBS as submitted
 import problem.problems as problems
 
 ### Parameters
-TEST_EPI_NUM = 10
+TEST_EPI_NUM =2
 ###############
 
 
@@ -112,6 +114,7 @@ def calculate_cost(instances, policy):
         score["goal_count"] = goal_rate_list.count(1.0)
         score["subtotal_cost"] = mean_goal_step
         cost.append(score)
+        print("End of problem number " + str(instance["id"]))
         # delete env
         del env
     subtotal_costs = [score["subtotal_cost"] for score in cost]
@@ -131,3 +134,4 @@ def calculate_cost(instances, policy):
 
 if __name__ == "__main__":
     cost, final_score = calculate_cost(problems.instances, submitted.policy)
+    render = True  # Choose whether to visualize

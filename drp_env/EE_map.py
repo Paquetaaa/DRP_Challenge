@@ -19,6 +19,7 @@ UNREAL_MAP = [
     "map_10x10",
     "map_aoba00",
     "map_aoba01",
+	"map_shibuya",
 ]
 
 class MapMake():
