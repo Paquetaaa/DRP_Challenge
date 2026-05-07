@@ -1,6 +1,6 @@
 import gym
 #from policy.policy_CBS_20_04 import policy
-from policy.policy_CBS import policy
+from policy.policy_ECBS import policy
 # from example.policy_prfl import policy
 import time
 
@@ -22,27 +22,27 @@ def policy_evaluation(policy, drone_num, map_name, reward_list, start, goal, ren
         start_ori_array=start,
     )
     obs = env.reset()
-    print(f"observation_space:{env.observation_space}")
-    print(f"action_space:{env.action_space}")
+    #print(f"observation_space:{env.observation_space}")
+    #print(f"action_space:{env.action_space}")
 
     done_all = False
     while not done_all:
         if render == True:
             env.render()
             #time.sleep(1)
-        print(f"obs:{obs}")  # current global observation
+        #print(f"obs:{obs}")  # current global observation
         actions = policy(obs, env)  # policy:input n_obs,env return each drone's action
         obs, reward, done, info = env.step(
             actions
         )  # transfer to next state once joint action is taken
-        print(f"obs:{obs}, actions:{actions}, reward:{reward}, done:{done},info:{info}")
+        #print(f"obs:{obs}, actions:{actions}, reward:{reward}, done:{done},info:{info}")
         done_all = all(done)
         env.get_obs()
 
 
 if __name__ == "__main__":
     drone_num = 8 # the number of drones (min:2 max:30)
-    map_name = "map_8x5"  # the map name (available maps: "map_3x3","map_aoba01","map_osaka" )
+    map_name = "map_shibuya"  # the map name (available maps: "map_3x3","map_aoba01","map_osaka" )
 
     # reward_list is individual reward function where
     # "goal: 100" means one drone will obtain 100 rewards once it reach its goal.
@@ -55,8 +55,8 @@ if __name__ == "__main__":
     }  # Developers can freely to alter the reward function (rewards are not used as evaluation index)
 
     # If the start and goal are empty lists, they are randomly selected.
-    start = [2, 15, 3, 17, 14, 13, 8, 10]  # drone1's start: node 0;  drone2's start: node 2;  drone3's start: node 4;  drone4's start: node 1;
-    goal = [ 16, 12, 9, 6, 5, 11, 7, 0]  # drone1's goal: node 3;  drone2's goal: node 6;  drone3's goal: node 1;  drone4's goal: node 7;
+    start = [5, 18, 6, 12, 27, 17, 3, 9] # drone1's start: node 0;  drone2's start: node 2;  drone3's start: node 4;  drone4's start: node 1;
+    goal = [14, 21, 8, 26, 13, 25, 22, 23]  # drone1's goal: node 3;  drone2's goal: node 6;  drone3's goal: node 1;  drone4's goal: node 7;
     render = False  # Choose whether to visualize
 
     """

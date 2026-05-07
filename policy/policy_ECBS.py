@@ -27,20 +27,24 @@ PROFILE = {
 
 USE_BYPASS = False
 CARDINAL_SEARCH_TRESHOLD = 200
-MAX_OPEN_SIZE = 5_000_000   # garde-fou mémoire
-MAX_ITER_CBS = 50_00000   # garde-fou temps (en nombre d'itérations)
+MAX_OPEN_SIZE = 5_000_000   # memory security for CBS (number of nodes in the open list)
+MAX_ITER_CBS = 50_00000   # time security for CBS (number of iterations in the main loop)
+W_BOUND = 1.1  # weight bound for ECBS (1.0 = exact CBS, 1.5 = ≤1.5×OPT, 2.0 = ≤2×OPT)
+
 
 
 WAIT_COST = 1  # Cost of waiting one step
 
 class CT_Node:
-    __slots__ = ('constraints', 'solution', 'cost', 'costs', 'conflicts')
+    __slots__ = ('constraints', 'solution', 'cost', 'costs', 'conflicts','popped','in_focal')
     def __init__(self, constraints, solution, cost, costs, conflicts):
         self.constraints = constraints 
         self.solution = solution
         self.cost = cost
         self.costs = costs
         self.conflicts = conflicts
+        self.popped = False 
+        self.in_focal = False
 
 
 ## UTILITY FUNCTIONS
@@ -454,6 +458,16 @@ def detect_conflict(solution,env):
     cs = detect_all_conflicts(solution,env)
     return cs[0] if cs else None
 
+
+def cleanup_heap(heap, value_index=2):
+    """Remove nodes marked as popped from the heap.
+    value_index = position of the CT_Node in the heap tuple.
+    2 in focal_list
+    3 in open_list
+    """
+    while heap and heap[0][value_index].popped:
+        heapq.heappop(heap)
+
 def make_root_node(env):
     """Initialisation of the constraints tree with the root node."""
     costs = {}
@@ -585,7 +599,7 @@ def build_constraints(conflict):
 
     return c1, c2
 
-def cbs(env, upper_bound=float('inf'), warm_solution=None):
+def cbs(env, upper_bound=float('inf'), warm_solution=None, w=W_BOUND):
     ## Creation of the root node
     start_time = time.time()
     #TIME_OUT = 60.0
@@ -599,7 +613,11 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
     if root is None:
         print("Racine impossible", flush=True)
         return None
+    root.in_focal = True  # root is in focal list by definition 
+    
     open_list = []
+    focal_list = []  
+    last_min_cost = root.cost
     counter = 0
     iter_count = 0
     bypass_count = 0
@@ -608,11 +626,19 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
     cnt_semi = 0
     cnt_non  = 0
 
+
+    # Profil counter for analysis
     for k in PROFILE:
         PROFILE[k] = 0
 
     # Push the root node in the queue
     heapq.heappush(open_list, (root.cost, len(root.conflicts), counter, root))
+
+    # Push the root node in the focal list (ECBS)
+    heapq.heappush(focal_list,(len(root.conflicts), counter, root))
+    
+
+
     while open_list and iter_count < MAX_ITER_CBS: 
         # GARDE-FOU MÉMOIRE
         if len(open_list) > MAX_OPEN_SIZE:
@@ -624,6 +650,29 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
         #     print(f"[CBS] timeout après {iter_count} itérations")
         #     return None
 
+        # Cleanup popped en tête d'open
+        cleanup_heap(open_list, value_index=3)
+        if not open_list:
+            break
+
+        # Si le min(open) a augmenté, élargir focal
+        current_min = open_list[0][0]
+        if current_min > last_min_cost:
+            f_bound = w * current_min
+            for entry in open_list:
+                cost = entry[0]
+                node = entry[3]
+                if not node.popped and not node.in_focal and cost <= f_bound:
+                    heapq.heappush(focal_list, (entry[1], entry[2], node))
+                    node.in_focal = True
+            last_min_cost = current_min
+
+        # Cleanup popped en tête de focal
+        cleanup_heap(focal_list, value_index=2)
+        if not focal_list:
+            break
+
+
         now = time.time()
 
         if iter_count % 1000 == 0 or now - last_log > 30:
@@ -634,12 +683,20 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
                 f"open={len(open_list)} min_cost={min_cost:.0f} its/s={its_per_sec:.1f} "
                 f"card={cnt_card} semi={cnt_semi} astar={PROFILE['astar_calls']}", flush=True)
             last_log = now
+            print(f"  open={len(open_list)} focal={len(focal_list)}", flush=True)
 
 
         iter_count += 1
-        #print(f"Iteration {iter_count}")
-        # We pop the node with the lowest cost
-        (_, __, ___, ct_node) = heapq.heappop(open_list)
+        # Pop depuis focal en priorité
+        if focal_list:
+            (_, _, ct_node) = heapq.heappop(focal_list)
+        else:
+            # Focal vide : fallback sur open
+            (_, _, _, ct_node) = heapq.heappop(open_list)
+
+        # Marquer comme popped — l'autre heap le skip via cleanup_heap
+        ct_node.popped = True
+
 
         # ÉLAGAGE PAR UPPER BOUND
         if ct_node.cost >= upper_bound:
@@ -680,6 +737,7 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
            new_path_A, new_cost_A,
            new_path_B, new_cost_B,
            c_A, c_B) = picked_conflict
+        
 
         # Child A
         if new_path_A is not None:
@@ -689,12 +747,17 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
             costsA = dict(ct_node.costs)
             costsA[agent_A] = new_cost_A
             sicA = sum(costsA.values())
-            childA_conflicts = update_conflicts(ct_node.conflicts, solutionA, env, agent_A)  # ← incremental
-            childA = CT_Node(childA_constraints, solutionA, sicA, costsA, childA_conflicts)
-            counter += 1
-            heapq.heappush(open_list, (childA.cost, len(childA.conflicts),counter, childA))
+            if sicA < upper_bound:
+                childA_conflicts = update_conflicts(ct_node.conflicts, solutionA, env, agent_A)
+                childA = CT_Node(childA_constraints, solutionA, sicA, costsA, childA_conflicts)
+                counter += 1
+                heapq.heappush(open_list, (childA.cost, len(childA.conflicts), counter, childA))
+                if childA.cost <= w * last_min_cost:
+                    heapq.heappush(focal_list, (len(childA.conflicts), counter, childA))
+                    childA.in_focal = True
 
-        # Child B (même logique avec agent_B)
+
+        # Child B
         if new_path_B is not None:
             childB_constraints = ct_node.constraints | c_B
             solutionB = dict(ct_node.solution)
@@ -702,14 +765,15 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
             costsB = dict(ct_node.costs)
             costsB[agent_B] = new_cost_B
             sicB = sum(costsB.values())
-            childB_conflicts = update_conflicts(ct_node.conflicts, solutionB, env, agent_B)
-            childB = CT_Node(childB_constraints, solutionB, sicB, costsB, childB_conflicts)
-            counter += 1
-            heapq.heappush(open_list, (childB.cost, len(childB.conflicts),counter, childB))
+            if sicB < upper_bound:
+                childB_conflicts = update_conflicts(ct_node.conflicts, solutionB, env, agent_B)
+                childB = CT_Node(childB_constraints, solutionB, sicB, costsB, childB_conflicts)
+                counter += 1
+                heapq.heappush(open_list, (childB.cost, len(childB.conflicts), counter, childB))
+                if childB.cost <= w * last_min_cost:
+                    heapq.heappush(focal_list, (len(childB.conflicts), counter, childB))
+                    childB.in_focal = True
 
-        
-        # print(f"[ITER {iter_count}] cls={cls} chosen={chosen} other={other}")
-        # print(f"   path_A is None: {new_path_A is None}, path_B is None: {new_path_B is None}")
 
         
         if cls == 'cardinal':
@@ -718,6 +782,7 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None):
             cnt_semi += 1
         else:
             cnt_non += 1
+
 
     return None
 
@@ -790,14 +855,6 @@ def init(env):
     print(f"[{time.strftime('%H:%M:%S')}] [INSTANCE END] cbs_success={cbs_success} "
           f"total_time={time.time()-init_start:.1f}s", flush=True)
 
-    for agent in range(env.agent_num):
-        path_idx[agent] = 0
-        last_node[agent] = env.current_start[agent]
-    
-    print(f"[{time.strftime('%H:%M:%S')}] [INSTANCE END] cbs_success={cbs_success} "
-      f"total_time={time.time()-init_start:.1f}s", flush=True)
-
-        
     for agent in range(env.agent_num):
         path_idx[agent] = 0
         last_node[agent] = env.current_start[agent]
