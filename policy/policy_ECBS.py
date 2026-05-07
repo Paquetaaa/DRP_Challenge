@@ -29,7 +29,8 @@ USE_BYPASS = False
 CARDINAL_SEARCH_TRESHOLD = 200
 MAX_OPEN_SIZE = 5_000_000   # memory security for CBS (number of nodes in the open list)
 MAX_ITER_CBS = 50_00000   # time security for CBS (number of iterations in the main loop)
-W_BOUND = 1.1  # weight bound for ECBS (1.0 = exact CBS, 1.5 = ≤1.5×OPT, 2.0 = ≤2×OPT)
+W_BOUND = 1.5  # weight bound for ECBS (1.0 = exact CBS, 1.5 = ≤1.5×OPT, 2.0 = ≤2×OPT)
+FORCE_OPEN_EVERY = 10        # constante en haut
 
 
 
@@ -687,15 +688,17 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None, w=W_BOUND):
 
 
         iter_count += 1
-        # Pop depuis focal en priorité
-        if focal_list:
+        # Pop logic
+
+        if focal_list and (iter_count % FORCE_OPEN_EVERY != 0):
             (_, _, ct_node) = heapq.heappop(focal_list)
         else:
-            # Focal vide : fallback sur open
+            cleanup_heap(open_list, value_index=3)
+            if not open_list:
+                break
             (_, _, _, ct_node) = heapq.heappop(open_list)
-
-        # Marquer comme popped — l'autre heap le skip via cleanup_heap
         ct_node.popped = True
+
 
 
         # ÉLAGAGE PAR UPPER BOUND
