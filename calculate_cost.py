@@ -5,7 +5,7 @@ from datetime import datetime
 
 #import policy.policy_CBS_10_04 as submitted
 #import policy.policy_astar as submitted
-import policy.policy_ECBS as submitted
+import policy.policy_PBS as submitted
 import problem.problems as problems
 
 ### Parameters

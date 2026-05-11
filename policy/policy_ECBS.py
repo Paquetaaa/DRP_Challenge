@@ -27,11 +27,11 @@ PROFILE = {
 
 USE_BYPASS = False
 CARDINAL_SEARCH_TRESHOLD = 200
-MAX_OPEN_SIZE = 5_000_000   # memory security for CBS (number of nodes in the open list)
-MAX_ITER_CBS = 50_00000   # time security for CBS (number of iterations in the main loop)
-W_BOUND = 1.5  # weight bound for ECBS (1.0 = exact CBS, 1.5 = ≤1.5×OPT, 2.0 = ≤2×OPT)
-FORCE_OPEN_EVERY = 10        # constante en haut
+MAX_OPEN_SIZE = 1_000_000   # memory security for CBS (number of nodes in the open list)
+MAX_ITER_CBS = 1_000_000   # time security for CBS (number of iterations in the main loop)
+W_BOUND = 2.0  # weight bound for ECBS (1.0 = exact CBS, 1.5 = ≤1.5×OPT, 2.0 = ≤2×OPT)
 
+FORCE_OPEN_EVERY = 5   # constante en haut
 
 
 WAIT_COST = 1  # Cost of waiting one step
@@ -218,19 +218,86 @@ def conflicts_for_agent(solution, env, agent):
     return out
 
 
-def priority_based_planning(env, max_horizon=500, max_attempts=5):
+
+def priority_based_planning(env, max_horizon=500, max_attempts=200):
     import random
     best_paths = None
     best_count = 0
+    best_cost = float('inf')
     
     for attempt in range(max_attempts):
         if attempt == 0:
+            print("Test descending order", flush=True)
             # First try, order by descending distance to goal (agents with longer paths are more likely to cause conflicts, so we plan them first)
             agent_order = sorted(range(env.agent_num),
                                  key=lambda a: -h_euclidian(env.pos,
                                                             env.current_start[a],
                                                             env.goal_array[a]))
+        elif attempt == 1:
+            print("Test ascending order", flush=True)
+            # Second try, order by ascending distance to goal (agents with shorter paths are more likely to be flexible and adapt to constraints, so we plan them later)
+            agent_order = sorted(range(env.agent_num),
+                                 key=lambda a: h_euclidian(env.pos,
+                                                            env.current_start[a],
+                                                            env.goal_array[a]))
+            
+        elif attempt == 2:
+            print("Test centrality order", flush=True)
+            # Ordre par "centralité" du start (les agents au cœur du graphe en premier)
+            centrality = nx.degree_centrality(env.G)
+            agent_order = sorted(range(env.agent_num),
+                                key=lambda a: -centrality.get(env.current_start[a], 0))
+
+        elif attempt == 3:
+            print("Test conflict-based order", flush=True)
+            # Ordre par densité de conflits potentiels (overlap des shortest paths)
+            # Précomputer les shortest paths sans contraintes
+            sp = {}
+            for a in range(env.agent_num):
+                try:
+                    sp[a] = set(nx.shortest_path(env.G, env.current_start[a], env.goal_array[a]))
+                except nx.NetworkXNoPath:
+                    sp[a] = set()
+            # Score = nombre de nodes partagés avec d'autres agents
+            score = {}
+            for a in range(env.agent_num):
+                score[a] = sum(len(sp[a] & sp[b]) for b in range(env.agent_num) if b != a)
+            agent_order = sorted(range(env.agent_num), key=lambda a: -score[a])
+        
+        # Nouveau attempt 4 : par "criticité du goal" (degré du goal node)
+        elif attempt == 4:
+            print("Test Goal criticality order", flush=True)
+            agent_order = sorted(range(env.agent_num),
+                                key=lambda a: -env.G.degree(env.goal_array[a]))
+
+        # Nouveau attempt 5 : par "criticité du start"
+        elif attempt == 5:
+            print("Test Start criticality order", flush=True)
+            agent_order = sorted(range(env.agent_num),
+                                key=lambda a: -env.G.degree(env.current_start[a]))
+
+        # Nouveau attempt 6 : permutation "miroir" (ordre inverse de descending)
+        elif attempt == 6:
+            print("Test reverse order", flush=True)
+            # déjà couvert par ascending mais avec une autre logique
+            agent_order = list(range(env.agent_num))[::-1]
+
+        # Nouveau attempt 7 : par début/fin alterné
+        elif attempt == 7:
+            print("Test alternating order", flush=True)
+            by_dist = sorted(range(env.agent_num),
+                            key=lambda a: -h_euclidian(env.pos,
+                                                        env.current_start[a],
+                                                        env.goal_array[a]))
+            agent_order = []
+            while by_dist:
+                agent_order.append(by_dist.pop(0))
+                if by_dist:
+                    agent_order.append(by_dist.pop(-1))
+
+
         else:
+            print("Test random order numero", attempt, flush=True)
             # Then, random order
             agent_order = list(range(env.agent_num))
             random.shuffle(agent_order)
@@ -251,14 +318,14 @@ def priority_based_planning(env, max_horizon=500, max_attempts=5):
             success_count += 1
             paths_pp[agent] = p
             for t, node in enumerate(p):
+                nearby = env.proximity_cache[node]    # ← LOOKUP O(1)
                 for other in range(env.agent_num):
                     if other == agent:
                         continue
                     constraints.add((other, node, t, '-'))
-                    # Blocage proximity
-                    for near in env.G.nodes:
-                        if near != node and h_euclidian(env.pos, near, node) <= env.speed:
-                            constraints.add((other, near, t, '-'))
+                    for near in nearby:                # ← itère seulement les vrais voisins
+                        constraints.add((other, near, t, '-'))
+
             # Goal protection
             goal = env.goal_array[agent]
             arrival = len(p) - 1
@@ -269,11 +336,23 @@ def priority_based_planning(env, max_horizon=500, max_attempts=5):
                     constraints.add((other, goal, t, '-'))
 
         
-        if success_count > best_count:
+        # Comparaison améliorée
+        if success_count == env.agent_num:
+            # Attempt complet : compare par coût
+            attempt_cost = sum(path_cost(env, paths_pp[a], env.goal_array[a])
+                                for a in range(env.agent_num))
+            if attempt_cost < best_cost:
+                best_cost = attempt_cost
+                best_paths = paths_pp
+                best_count = success_count
+                print(f"[FALLBACK] attempt {attempt} success_count={success_count} "
+                      f"cost={attempt_cost} (NEW BEST)", flush=True)
+        elif success_count > best_count:
+            # Attempt incomplet mais meilleur que les précédents partiels
             best_count = success_count
             best_paths = paths_pp
-            if success_count == env.agent_num:
-                return best_paths     # Every agents has a path, we can stop here
+            print(f"[FALLBACK] attempt {attempt} success_count={success_count} "
+                  f"(partial best)", flush=True)
 
     
     return best_paths if best_paths is not None else {}
@@ -572,6 +651,28 @@ def build_disjoint_constraints(conflict, chosen):
 
     return c_pos, c_neg
 
+def has_conflict_pair(path_i, path_j, env):
+    """True s'il y a vertex, edge swap ou proximity entre les deux chemins."""
+    max_len = max(len(path_i), len(path_j))
+    for ki in range(max_len):
+        pos_i = path_i[ki] if ki < len(path_i) else path_i[-1]
+        pos_j = path_j[ki] if ki < len(path_j) else path_j[-1]
+        # vertex (any node, original ou intermediate)
+        if pos_i == pos_j:
+            return True
+        # proximity
+        if h_euclidian(env.pos, pos_i, pos_j) <= env.speed:
+            return True
+    for ki in range(max_len - 1):
+        pos_i = path_i[ki] if ki < len(path_i) else path_i[-1]
+        pos_j = path_j[ki] if ki < len(path_j) else path_j[-1]
+        pos_i_next = path_i[ki+1] if ki+1 < len(path_i) else path_i[-1]
+        pos_j_next = path_j[ki+1] if ki+1 < len(path_j) else path_j[-1]
+        # edge swap
+        if pos_i == pos_j_next and pos_j == pos_i_next:
+            return True
+    return False
+
 
 def build_constraints(conflict):
     """Return (c1,c2) the two constraints that resolve a given conflict."""
@@ -600,10 +701,63 @@ def build_constraints(conflict):
 
     return c1, c2
 
+def local_search_improve(env, best_paths, n_iter=50):
+    import random
+    """Try replanning one agent at a time, keep if improves total cost."""
+    current = dict(best_paths)
+    current_cost = sum(path_cost(env, current[a], env.goal_array[a])
+                       for a in range(env.agent_num))
+    
+    for it in range(n_iter):
+        # Pick random agent to replan
+        agent = random.randint(0, env.agent_num - 1)
+        # Build constraints from OTHER agents' current paths
+        constraints = set()
+        for other in range(env.agent_num):
+            if other == agent:
+                continue
+            for t, node in enumerate(current[other]):
+                constraints.add((agent, node, t, '-'))
+                # proximity
+                for near in env.G.nodes:
+                    if near != node and h_euclidian(env.pos, near, node) <= env.speed:
+                        constraints.add((agent, near, t, '-'))
+        # Replan agent
+        new_path = a_star_constrained(env, agent,
+                                       env.current_start[agent],
+                                       env.goal_array[agent],
+                                       constraints)
+        if new_path is None:
+            continue
+        new_cost_agent = path_cost(env, new_path, env.goal_array[agent])
+        old_cost_agent = path_cost(env, current[agent], env.goal_array[agent])
+        if new_cost_agent < old_cost_agent:
+            # Vérifie qu'on n'introduit pas de conflit avec les autres
+            safe = True
+            for other in range(env.agent_num):
+                if other == agent:
+                    continue
+                if has_conflict_pair(new_path, current[other], env):
+                    safe = False
+                    break
+            
+            if safe:
+                current[agent] = new_path
+                current_cost = current_cost - old_cost_agent + new_cost_agent
+                improvements += 1
+                print(f"[LOCAL SEARCH] iter {it}: agent {agent} {old_cost_agent}→{new_cost_agent}, total={current_cost}", flush=True)
+            else:
+                # Rejeté car création de conflit
+                pass
+
+    
+    return current, current_cost
+
+
 def cbs(env, upper_bound=float('inf'), warm_solution=None, w=W_BOUND):
     ## Creation of the root node
     start_time = time.time()
-    #TIME_OUT = 60.0
+    TIME_OUT = 5.0
 
     print(f"[CBS START] {time.strftime('%H:%M:%S')} agents={env.agent_num} nodes={len(env.G.nodes)}", flush=True)
     loop_start = time.time()
@@ -647,9 +801,9 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None, w=W_BOUND):
                   f"({len(open_list)}), aborting", flush=True)
             return None    # init() utilisera warm_solution
 
-        # if time.time() - start_time > TIME_OUT:
-        #     print(f"[CBS] timeout après {iter_count} itérations")
-        #     return None
+        if time.time() - start_time > TIME_OUT:
+            print(f"[CBS] timeout après {iter_count} itérations")
+            return None
 
         # Cleanup popped en tête d'open
         cleanup_heap(open_list, value_index=3)
@@ -688,17 +842,26 @@ def cbs(env, upper_bound=float('inf'), warm_solution=None, w=W_BOUND):
 
 
         iter_count += 1
-        # Pop logic
 
+        # Dans la boucle, remplace la pop logic :
         if focal_list and (iter_count % FORCE_OPEN_EVERY != 0):
-            (_, _, ct_node) = heapq.heappop(focal_list)
+            cleanup_heap(focal_list, value_index=2)
+            if focal_list:
+                (_, _, ct_node) = heapq.heappop(focal_list)
+            else:
+                # focal vide après cleanup, fallback open
+                cleanup_heap(open_list, value_index=3)
+                if not open_list:
+                    break
+                (_, _, _, ct_node) = heapq.heappop(open_list)
         else:
+            # Force pop depuis open pour faire progresser min_cost
             cleanup_heap(open_list, value_index=3)
             if not open_list:
                 break
             (_, _, _, ct_node) = heapq.heappop(open_list)
-        ct_node.popped = True
 
+        ct_node.popped = True
 
 
         # ÉLAGAGE PAR UPPER BOUND
@@ -816,6 +979,16 @@ def init(env):
     # Reshape the graph to transform continous problem into discrete problem for CBS.
     env.G = reshape_graph_from_G(env, env.G_original, env.pos_original)
 
+    # Précompute proximity (une fois par épisode)
+    if not hasattr(env, "proximity_cache"):
+        env.proximity_cache = {}
+        for node in env.G.nodes:
+            nearby = [near for near in env.G.nodes
+                      if near != node and h_euclidian(env.pos, near, node) <= env.speed]
+            env.proximity_cache[node] = nearby
+
+
+
     # === WARM START : on lance d'abord le fallback ===
     print(f"[{time.strftime('%H:%M:%S')}] [WARM START] running priority_based first...", flush=True)
     warm_solution = priority_based_planning(env)
@@ -830,6 +1003,9 @@ def init(env):
         if all_reach_goal:
             UB = warm_cost
             print(f"[WARM START] cost={warm_cost} (used as upper bound)", flush=True)
+            # === LOCAL SEARCH ICI ===
+            warm_solution, warm_cost = local_search_improve(env, warm_solution, n_iter=50)
+            print(f"[LOCAL SEARCH] final cost={warm_cost}", flush=True)
         else:
             UB = float('inf')
             print(f"[WARM START] partial (some agents stuck), no UB", flush=True)

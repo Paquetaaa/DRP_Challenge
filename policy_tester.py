@@ -1,6 +1,6 @@
 import gym
 #from policy.policy_CBS_20_04 import policy
-from policy.policy_ECBS import policy
+from policy.policy_PBS import policy
 # from example.policy_prfl import policy
 import time
 

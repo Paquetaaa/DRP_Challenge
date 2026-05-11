@@ -1,10 +1,10 @@
 {
     "Author": "GRENECHE Lucas",
-    "Scored time": "2026-05-22-14-34",
+    "Scored time": "2026-05-13-59-55",
     "Score": [
         {
             "instance_id": 1,
-            "runtime": 0.009496927261352539,
+            "runtime": 0.2273261547088623,
             "distance": 130.06527145628317,
             "time_step": 16.0,
             "goal_rate": 1.0,
@@ -13,7 +13,7 @@
         },
         {
             "instance_id": 2,
-            "runtime": 0.005750536918640137,
+            "runtime": 0.14246714115142822,
             "distance": 61.98275265845254,
             "time_step": 9.0,
             "goal_rate": 1.0,
@@ -22,7 +22,7 @@
         },
         {
             "instance_id": 3,
-            "runtime": 0.005582451820373535,
+            "runtime": 0.14590239524841309,
             "distance": 63.25715932598315,
             "time_step": 8.0,
             "goal_rate": 1.0,
@@ -31,7 +31,7 @@
         },
         {
             "instance_id": 4,
-            "runtime": 0.014634013175964355,
+            "runtime": 0.4429401159286499,
             "distance": 129.7075962331762,
             "time_step": 16.0,
             "goal_rate": 1.0,
@@ -40,7 +40,7 @@
         },
         {
             "instance_id": 5,
-            "runtime": 0.015486478805541992,
+            "runtime": 0.4524790048599243,
             "distance": 142.38997435900149,
             "time_step": 18.0,
             "goal_rate": 1.0,
@@ -49,7 +49,7 @@
         },
         {
             "instance_id": 6,
-            "runtime": 0.009825944900512695,
+            "runtime": 0.28170132637023926,
             "distance": 70.65227955885402,
             "time_step": 6.0,
             "goal_rate": 1.0,
@@ -58,7 +58,7 @@
         },
         {
             "instance_id": 7,
-            "runtime": 0.013960838317871094,
+            "runtime": 0.37492144107818604,
             "distance": 97.9529992180606,
             "time_step": 9.0,
             "goal_rate": 1.0,
@@ -67,7 +67,7 @@
         },
         {
             "instance_id": 8,
-            "runtime": 0.036100029945373535,
+            "runtime": 0.7767369747161865,
             "distance": 176.46032286751878,
             "time_step": 13.0,
             "goal_rate": 1.0,
@@ -76,7 +76,7 @@
         },
         {
             "instance_id": 9,
-            "runtime": 0.10196924209594727,
+            "runtime": 4.4661705493927,
             "distance": 156.01618814818127,
             "time_step": 16.0,
             "goal_rate": 1.0,
@@ -85,15 +85,78 @@
         },
         {
             "instance_id": 10,
-            "runtime": 0.022739410400390625,
+            "runtime": 0.71401047706604,
             "distance": 146.22838183513008,
             "time_step": 9.0,
             "goal_rate": 1.0,
             "goal_count": 2,
             "subtotal_cost": 32.0
+        },
+        {
+            "instance_id": 11,
+            "runtime": 62.130879044532776,
+            "distance": 786.1974152237324,
+            "time_step": 45.0,
+            "goal_rate": 1.0,
+            "goal_count": 2,
+            "subtotal_cost": 162.0
+        },
+        {
+            "instance_id": 12,
+            "runtime": 27.426621913909912,
+            "distance": 781.4754190634237,
+            "time_step": 59.0,
+            "goal_rate": 0.75,
+            "goal_count": 0,
+            "subtotal_cost": 206.0
+        },
+        {
+            "instance_id": 13,
+            "runtime": 18.44607436656952,
+            "distance": 962.9182837284194,
+            "time_step": 88.0,
+            "goal_rate": 1.0,
+            "goal_count": 2,
+            "subtotal_cost": 199.0
+        },
+        {
+            "instance_id": 14,
+            "runtime": 61.315887451171875,
+            "distance": 1020.3889379489901,
+            "time_step": 51.0,
+            "goal_rate": 1.0,
+            "goal_count": 2,
+            "subtotal_cost": 217.0
+        },
+        {
+            "instance_id": 15,
+            "runtime": 94.98959743976593,
+            "distance": 739.0246479234546,
+            "time_step": 30.0,
+            "goal_rate": 0.16666666666666666,
+            "goal_count": 0,
+            "subtotal_cost": 529.0
+        },
+        {
+            "instance_id": 16,
+            "runtime": 51.67531645298004,
+            "distance": 424.3734108109338,
+            "time_step": 16.0,
+            "goal_rate": 0.16666666666666666,
+            "goal_count": 0,
+            "subtotal_cost": 507.0
+        },
+        {
+            "instance_id": 17,
+            "runtime": 115.05940234661102,
+            "distance": 1304.911551961062,
+            "time_step": 70.0,
+            "goal_rate": 1.0,
+            "goal_count": 2,
+            "subtotal_cost": 280.0
         }
     ],
-    "final cost": 268.0,
-    "completed": 10,
+    "final cost": 2368.0,
+    "completed": 17,
     "total": 30
 }
