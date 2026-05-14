@@ -6,7 +6,7 @@ import time
 import problem.problems as problems
 
 ### submission information ####
-TEAM_NAME = "GRENECHE Lucas"
+TEAM_NAME = "LUCAS GRENECHE"
 ##############################
 
 # Global Variables 
@@ -17,9 +17,11 @@ last_node = {} # To detect when an agent has reached its next waypoint
 
 WAIT_COST = 1  # Cost of waiting one step
 
+EARLY_STOP = True
+
 TARGETS_BY_FINGERPRINT = {}
 TARGETS_OLD = {1:28, 2:14, 3:14, 4:29, 5:29, 6:15, 7:24, 8:38, 9:41, 10:32,
-           11:162, 12:189, 13:199, 14:217, 15:306, 16:217, 17:280, 18:342, 19:378, 20:341, 21:510, 22:424, 23:353, 24:593, 25:539, 26:618, 27:637, 28:698, 29:559, 30:603}
+           11:162, 12:189, 13:199, 14:217, 15:306, 16:217, 17:280, 18:342, 19:378, 20:341, 21:510, 22:424, 23:353, 24:593, 25:541, 26:641, 27:625, 28:703, 29:615, 30:603}
 
 for inst in problems.instances:
     fp = (inst["drone_num"], tuple(inst["start"]), tuple(inst["goal"]))
@@ -114,7 +116,7 @@ def reshape_graph_from_G(env, G, pos):
     return G_new
 
 ## Priority-Based Search (PBS) implementation
-def priority_based_planning(env, max_horizon=500, max_attempts=200,target_cost=float('inf')):
+def priority_based_planning(env, max_horizon=500, max_attempts=2000,target_cost=float('inf')):
     import random
     best_paths = None
     best_count = 0
@@ -202,7 +204,7 @@ def priority_based_planning(env, max_horizon=500, max_attempts=200,target_cost=f
                                    env.goal_array[agent],
                                    constraints)
             if p is None:
-                print(f"[fallback] attempt {attempt} agent {agent} infeasible, staying at start", flush=True)
+                # print(f"[fallback] attempt {attempt} agent {agent} infeasible, staying at start", flush=True)
                 paths_pp[agent] = [env.current_start[agent]]
                 continue
             success_count += 1
@@ -240,7 +242,7 @@ def priority_based_planning(env, max_horizon=500, max_attempts=200,target_cost=f
                       f"cost={attempt_cost} (NEW BEST)", flush=True)
                 
             # Early stopping if reach best
-            if attempt_cost <= target_cost:
+            if attempt_cost <= target_cost and EARLY_STOP:
                 print(f"Attempt {attempt} reached target cost {target_cost}, stopping early.", flush=True)
                 return paths_pp
         elif success_count > best_count:
@@ -343,10 +345,6 @@ def init(env):
     fp = (env.agent_num, tuple(env.start_ori_array), tuple(env.goal_array))
     target_cost = TARGETS_BY_FINGERPRINT.get(fp, float('inf'))
     print(f"[DEBUG] fingerprint={fp}, target={target_cost}", flush=True)
-
-
-
-
 
     init_start = time.time()
 

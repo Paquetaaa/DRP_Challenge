@@ -5,11 +5,11 @@ from datetime import datetime
 
 #import policy.policy_CBS_10_04 as submitted
 #import policy.policy_astar as submitted
-import policy.policy_PBS as submitted
+import policy.policy_PBS_early as submitted
 import problem.problems as problems
 
 ### Parameters
-TEST_EPI_NUM =2
+TEST_EPI_NUM = 10
 ###############
 
 
